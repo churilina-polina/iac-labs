@@ -1,0 +1,28 @@
+---
+- name: Задать параметры ядра для OpenSearch
+  ansible.builtin.template:
+    src: sysctl-opensearch.conf.j2
+    dest: /etc/sysctl.d/90-opensearch.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Применить sysctl
+
+- name: Отключить swap прямо сейчас
+  ansible.builtin.command: swapoff -a
+  when:
+    - opensearch_disable_swap
+    - ansible_facts['swaptotal_mb'] | int > 0
+  changed_when: true
+
+- name: Закомментировать swap в fstab, чтобы он не вернулся после перезагрузки
+  ansible.builtin.replace:
+    path: /etc/fstab
+    regexp: '^([^#\s]+\s+\S+\s+swap\s+.*)$'
+    replace: '# \1'
+  when: opensearch_disable_swap
+
+# vm.max_map_count нужен до первого старта OpenSearch, поэтому handler
+# с sysctl выполняем сразу, а не в конце play.
+- name: Применить системные настройки до установки сервиса
+  ansible.builtin.meta: flush_handlers

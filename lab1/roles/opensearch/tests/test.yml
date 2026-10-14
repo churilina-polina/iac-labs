@@ -1,0 +1,21 @@
+---
+# Прогон роли на самой машине (например, внутри VM): ansible-playbook -i tests/inventory tests/test.yml
+# Пароль берётся из окружения: OPENSEARCH_ADMIN_PASSWORD
+- name: Проверка роли opensearch
+  hosts: localhost
+  become: true
+  vars:
+    opensearch_admin_password: "{{ lookup('ansible.builtin.env', 'OPENSEARCH_ADMIN_PASSWORD') }}"
+  roles:
+    - role: opensearch
+
+  post_tasks:
+    - name: Сервисы включены в автозапуск
+      ansible.builtin.command: systemctl is-enabled opensearch opensearch-dashboards
+      changed_when: false
+
+    - name: Версии пакетов зафиксированы
+      ansible.builtin.command: apt-mark showhold
+      register: held
+      changed_when: false
+      failed_when: "'opensearch' not in held.stdout_lines"

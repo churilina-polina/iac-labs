@@ -1,0 +1,41 @@
+# {{ ansible_managed }}
+cluster.name: {{ opensearch_cluster_name }}
+node.name: {{ opensearch_node_name }}
+
+path.data: {{ opensearch_data_path }}
+path.logs: {{ opensearch_logs_path }}
+
+network.host: {{ opensearch_network_host }}
+http.port: {{ opensearch_http_port }}
+transport.port: {{ opensearch_transport_port }}
+
+discovery.type: single-node
+bootstrap.memory_lock: {{ opensearch_memory_lock | lower }}
+
+{% if opensearch_security_enabled %}
+# Security plugin: демо-сертификаты, созданные postinst-скриптом пакета
+plugins.security.ssl.transport.pemcert_filepath: esnode.pem
+plugins.security.ssl.transport.pemkey_filepath: esnode-key.pem
+plugins.security.ssl.transport.pemtrustedcas_filepath: root-ca.pem
+plugins.security.ssl.transport.enforce_hostname_verification: false
+plugins.security.ssl.http.enabled: true
+plugins.security.ssl.http.pemcert_filepath: esnode.pem
+plugins.security.ssl.http.pemkey_filepath: esnode-key.pem
+plugins.security.ssl.http.pemtrustedcas_filepath: root-ca.pem
+plugins.security.allow_unsafe_democertificates: true
+plugins.security.allow_default_init_securityindex: true
+plugins.security.authcz.admin_dn:
+  - "CN=kirk,OU=client,O=client,L=test,C=de"
+plugins.security.audit.type: internal_opensearch
+plugins.security.enable_snapshot_restore_privilege: true
+plugins.security.check_snapshot_restore_write_privileges: true
+plugins.security.restapi.roles_enabled: ["all_access", "security_rest_api_access"]
+plugins.security.system_indices.enabled: true
+{% else %}
+plugins.security.disabled: true
+{% endif %}
+{% if opensearch_extra_config %}
+
+# Дополнительные настройки (opensearch_extra_config)
+{{ opensearch_extra_config | to_nice_yaml(indent=2) }}
+{%- endif %}

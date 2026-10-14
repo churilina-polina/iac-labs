@@ -1,0 +1,5 @@
+---
+# Пароль не хранится в репозитории: export OPENSEARCH_ADMIN_PASSWORD='...'
+opensearch_admin_password: "{{ lookup('ansible.builtin.env', 'OPENSEARCH_ADMIN_PASSWORD') }}"
+opensearch_cluster_name: devops-lab1
+opensearch_heap_size: 2g

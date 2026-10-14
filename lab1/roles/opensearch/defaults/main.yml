@@ -1,0 +1,58 @@
+---
+# ---------- Версии и источник пакетов ----------
+# Точная версия OpenSearch. В репозитории 3.x лежат и более новые релизы,
+# поэтому версия закрепляется явно, а пакет ставится на hold.
+opensearch_version: "3.8.0"
+# Dashboards обязан совпадать с OpenSearch по версии, поэтому по умолчанию берём ту же.
+opensearch_dashboards_version: "{{ opensearch_version }}"
+# Ставить ли Dashboards вообще (например, на чисто «серверные» узлы не нужно).
+opensearch_dashboards_enabled: true
+# Базовый URL репозитория. Вынесен, чтобы можно было подставить зеркало,
+# если с сервера не открывается artifacts.opensearch.org.
+opensearch_repo_url: "https://artifacts.opensearch.org/releases/bundle"
+
+# ---------- Кластер и узел ----------
+opensearch_cluster_name: "lab-cluster"
+opensearch_node_name: "{{ inventory_hostname_short }}"
+# 0.0.0.0 - чтобы API был доступен с хоста; для закрытого узла можно поставить 127.0.0.1.
+opensearch_network_host: "0.0.0.0"
+opensearch_http_port: 9200
+opensearch_transport_port: 9300
+opensearch_data_path: /var/lib/opensearch
+opensearch_logs_path: /var/log/opensearch
+# Произвольные дополнительные настройки opensearch.yml (ключ: значение).
+opensearch_extra_config: {}
+
+# ---------- JVM и память ----------
+# Половина RAM, но не больше 31 ГБ (дальше JVM теряет compressed oops).
+opensearch_heap_size: "{{ [(ansible_facts['memtotal_mb'] / 2) | int, 31744] | min }}m"
+# Запрет свопа heap'а: bootstrap.memory_lock + LimitMEMLOCK=infinity в systemd.
+opensearch_memory_lock: true
+
+# ---------- Настройка системы ----------
+opensearch_vm_max_map_count: 262144
+opensearch_nofile_limit: 65535
+opensearch_disable_swap: true
+
+# ---------- Безопасность ----------
+# Security plugin с демо-сертификатами (TLS на 9200 + basic auth).
+# false - plain HTTP без авторизации (только для изолированных стендов).
+opensearch_security_enabled: true
+# Пароль пользователя admin. Обязателен при включённой безопасности,
+# хранить его стоит в vault или передавать через переменную окружения.
+opensearch_admin_password: ""
+# Пароль служебного пользователя Dashboards (в демо-конфигурации - kibanaserver).
+opensearch_dashboards_server_password: "kibanaserver"
+
+# ---------- Проверка готовности ----------
+opensearch_healthcheck_retries: 30
+opensearch_healthcheck_delay: 10
+# На одном узле реплики разместить негде, поэтому yellow тоже считается нормой.
+opensearch_healthcheck_statuses:
+  - green
+  - yellow
+
+# ---------- OpenSearch Dashboards ----------
+opensearch_dashboards_host: "0.0.0.0"
+opensearch_dashboards_port: 5601
+opensearch_dashboards_extra_config: {}

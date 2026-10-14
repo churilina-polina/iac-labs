@@ -1,0 +1,32 @@
+---
+- name: Убедиться, что дистрибутив поддерживается
+  ansible.builtin.assert:
+    that:
+      - ansible_facts['distribution'] in opensearch_supported_distributions
+      - ansible_facts['architecture'] in ['x86_64', 'aarch64']
+    fail_msg: >-
+      Роль поддерживает Ubuntu/Debian на x86_64/aarch64,
+      а здесь {{ ansible_facts['distribution'] }} {{ ansible_facts['architecture'] }}
+    quiet: true
+
+- name: Проверить пароль admin (требования security plugin)
+  ansible.builtin.assert:
+    that:
+      - opensearch_admin_password | length >= 8
+      - opensearch_admin_password is search('[A-Z]')
+      - opensearch_admin_password is search('[a-z]')
+      - opensearch_admin_password is search('[0-9]')
+      - opensearch_admin_password is search('[^A-Za-z0-9]')
+    fail_msg: >-
+      При opensearch_security_enabled=true нужен opensearch_admin_password:
+      не короче 8 символов, с заглавной и строчной буквой, цифрой и спецсимволом.
+    quiet: true
+  when: opensearch_security_enabled
+  no_log: true
+
+- name: Убедиться, что версии OpenSearch и Dashboards совпадают
+  ansible.builtin.assert:
+    that: opensearch_dashboards_version == opensearch_version
+    fail_msg: "Dashboards {{ opensearch_dashboards_version }} не работает с OpenSearch {{ opensearch_version }}"
+    quiet: true
+  when: opensearch_dashboards_enabled

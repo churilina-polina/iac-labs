@@ -1,0 +1,22 @@
+# {{ ansible_managed }}
+server.host: "{{ opensearch_dashboards_host }}"
+server.port: {{ opensearch_dashboards_port }}
+server.name: "{{ opensearch_node_name }}-dashboards"
+
+opensearch.hosts: ["{{ opensearch_api_url }}"]
+{% if opensearch_security_enabled %}
+opensearch.ssl.verificationMode: none
+opensearch.username: kibanaserver
+opensearch.password: "{{ opensearch_dashboards_server_password }}"
+opensearch.requestHeadersAllowlist: [authorization, securitytenant]
+
+opensearch_security.multitenancy.enabled: true
+opensearch_security.multitenancy.tenants.preferred: [Private, Global]
+opensearch_security.readonly_mode.roles: [kibana_read_only]
+# Dashboards открывается по http, поэтому cookie без флага secure
+opensearch_security.cookie.secure: false
+{% endif %}
+{% if opensearch_dashboards_extra_config %}
+
+{{ opensearch_dashboards_extra_config | to_nice_yaml(indent=2) }}
+{%- endif %}

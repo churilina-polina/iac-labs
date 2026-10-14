@@ -1,0 +1,16 @@
+---
+galaxy_info:
+  role_name: opensearch
+  author: Polina Churilina
+  description: Установка OpenSearch и OpenSearch Dashboards в режиме single-node из официального apt-репозитория
+  license: MIT
+  min_ansible_version: "2.15"
+  platforms:
+    - name: Ubuntu
+      versions: [jammy, noble]
+    - name: Debian
+      versions: [bookworm]
+  galaxy_tags: [opensearch, search, logging]
+
+# Роль самодостаточна: сторонние роли не используются
+dependencies: []

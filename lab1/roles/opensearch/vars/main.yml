@@ -1,0 +1,28 @@
+---
+# Внутренние значения роли, которые задаются пакетами и менять не нужно.
+opensearch_supported_distributions:
+  - Ubuntu
+  - Debian
+
+opensearch_dependencies:
+  - ca-certificates
+  - curl
+  - python3-apt
+
+# Ветка репозитория выводится из версии: 3.8.0 -> 3.x
+opensearch_repo_branch: "{{ opensearch_version.split('.')[0] }}.x"
+opensearch_keyring_path: /usr/share/keyrings/opensearch-release.asc
+
+opensearch_package: opensearch
+opensearch_dashboards_package: opensearch-dashboards
+opensearch_user: opensearch
+opensearch_dashboards_user: opensearch-dashboards
+
+opensearch_home: /usr/share/opensearch
+opensearch_conf_dir: /etc/opensearch
+opensearch_dashboards_home: /usr/share/opensearch-dashboards
+opensearch_dashboards_conf_dir: /etc/opensearch-dashboards
+
+opensearch_scheme: "{{ 'https' if opensearch_security_enabled else 'http' }}"
+opensearch_api_url: "{{ opensearch_scheme }}://127.0.0.1:{{ opensearch_http_port }}"
+opensearch_dashboards_url: "http://127.0.0.1:{{ opensearch_dashboards_port }}"

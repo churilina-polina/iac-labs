@@ -1,0 +1,8 @@
+# {{ ansible_managed }}
+[Service]
+LimitNOFILE={{ opensearch_nofile_limit }}
+{% if opensearch_memory_lock %}
+LimitMEMLOCK=infinity
+{% endif %}
+# первый старт с инициализацией security-индекса бывает долгим
+TimeoutStartSec=300

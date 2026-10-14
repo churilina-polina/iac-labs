@@ -1,0 +1,66 @@
+---
+# Ansible проверяет типы и допустимые значения параметров до выполнения задач
+argument_specs:
+  main:
+    short_description: OpenSearch + Dashboards single-node
+    options:
+      opensearch_version:
+        type: str
+        description: Точная версия пакета OpenSearch
+      opensearch_dashboards_version:
+        type: str
+        description: Версия Dashboards, должна совпадать с OpenSearch
+      opensearch_dashboards_enabled:
+        type: bool
+      opensearch_repo_url:
+        type: str
+        description: Базовый URL репозитория (можно указать зеркало)
+      opensearch_cluster_name:
+        type: str
+      opensearch_node_name:
+        type: str
+      opensearch_network_host:
+        type: str
+      opensearch_http_port:
+        type: int
+      opensearch_transport_port:
+        type: int
+      opensearch_data_path:
+        type: path
+      opensearch_logs_path:
+        type: path
+      opensearch_extra_config:
+        type: dict
+      opensearch_heap_size:
+        type: str
+        description: Размер heap JVM, например 2g или 4096m
+      opensearch_memory_lock:
+        type: bool
+      opensearch_vm_max_map_count:
+        type: int
+      opensearch_nofile_limit:
+        type: int
+      opensearch_disable_swap:
+        type: bool
+      opensearch_security_enabled:
+        type: bool
+      opensearch_admin_password:
+        type: str
+        no_log: true
+      opensearch_dashboards_server_password:
+        type: str
+        no_log: true
+      opensearch_healthcheck_retries:
+        type: int
+      opensearch_healthcheck_delay:
+        type: int
+      opensearch_healthcheck_statuses:
+        type: list
+        elements: str
+        choices: [green, yellow, red]
+      opensearch_dashboards_host:
+        type: str
+      opensearch_dashboards_port:
+        type: int
+      opensearch_dashboards_extra_config:
+        type: dict

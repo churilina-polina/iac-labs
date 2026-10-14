@@ -1,0 +1,44 @@
+---
+- name: Дождаться готовности кластера (GET _cluster/health)
+  ansible.builtin.uri:
+    url: "{{ opensearch_api_url }}/_cluster/health"
+    url_username: "{{ 'admin' if opensearch_security_enabled else omit }}"
+    url_password: "{{ opensearch_admin_password if opensearch_security_enabled else omit }}"
+    force_basic_auth: "{{ opensearch_security_enabled }}"
+    # демо-сертификаты самоподписанные
+    validate_certs: false
+    return_content: true
+  register: opensearch_health
+  until:
+    - opensearch_health.status == 200
+    - opensearch_health.json.status in opensearch_healthcheck_statuses
+  retries: "{{ opensearch_healthcheck_retries }}"
+  delay: "{{ opensearch_healthcheck_delay }}"
+
+- name: Показать состояние кластера
+  ansible.builtin.debug:
+    var: opensearch_health.json
+
+- name: Проверить, что запущена нужная версия
+  ansible.builtin.uri:
+    url: "{{ opensearch_api_url }}/"
+    url_username: "{{ 'admin' if opensearch_security_enabled else omit }}"
+    url_password: "{{ opensearch_admin_password if opensearch_security_enabled else omit }}"
+    force_basic_auth: "{{ opensearch_security_enabled }}"
+    validate_certs: false
+  register: opensearch_root
+  failed_when: opensearch_root.json.version.number != opensearch_version
+
+- name: Дождаться готовности Dashboards (GET /api/status)
+  ansible.builtin.uri:
+    url: "{{ opensearch_dashboards_url }}/api/status"
+    url_username: "{{ 'admin' if opensearch_security_enabled else omit }}"
+    url_password: "{{ opensearch_admin_password if opensearch_security_enabled else omit }}"
+    force_basic_auth: "{{ opensearch_security_enabled }}"
+  register: opensearch_dashboards_status
+  until:
+    - opensearch_dashboards_status.status == 200
+    - opensearch_dashboards_status.json.status.overall.state == 'green'
+  retries: "{{ opensearch_healthcheck_retries }}"
+  delay: "{{ opensearch_healthcheck_delay }}"
+  when: opensearch_dashboards_enabled
