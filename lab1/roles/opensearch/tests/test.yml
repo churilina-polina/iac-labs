@@ -1,8 +1,9 @@
 ---
-# Прогон роли на самой машине (например, внутри VM): ansible-playbook -i tests/inventory tests/test.yml
-# Пароль берётся из окружения: OPENSEARCH_ADMIN_PASSWORD
+# Прогон роли + дополнительные проверки. Пароль берётся из окружения OPENSEARCH_ADMIN_PASSWORD.
+#   с управляющей машины (из lab1/): ansible-playbook -i inventory/hosts.yml roles/opensearch/tests/test.yml
+#   на самой целевой машине:         ansible-playbook -i tests/inventory tests/test.yml
 - name: Проверка роли opensearch
-  hosts: localhost
+  hosts: all
   become: true
   vars:
     opensearch_admin_password: "{{ lookup('ansible.builtin.env', 'OPENSEARCH_ADMIN_PASSWORD') }}"
@@ -10,12 +11,23 @@
     - role: opensearch
 
   post_tasks:
-    - name: Сервисы включены в автозапуск
-      ansible.builtin.command: systemctl is-enabled opensearch opensearch-dashboards
-      changed_when: false
+    - name: Собрать состояние systemd-сервисов
+      ansible.builtin.service_facts:
+
+    - name: Сервисы включены в автозапуск и работают
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['services'][item]['status'] == 'enabled'
+          - ansible_facts['services'][item]['state'] == 'running'
+        quiet: true
+      loop:
+        - opensearch.service
+        - opensearch-dashboards.service
 
     - name: Версии пакетов зафиксированы
       ansible.builtin.command: apt-mark showhold
-      register: held
+      register: opensearch_test_held
       changed_when: false
-      failed_when: "'opensearch' not in held.stdout_lines"
+      failed_when: >-
+        'opensearch' not in opensearch_test_held.stdout_lines
+        or 'opensearch-dashboards' not in opensearch_test_held.stdout_lines

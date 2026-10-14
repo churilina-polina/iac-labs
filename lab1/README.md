@@ -47,7 +47,7 @@ lab1/
     │   ├── opensearch.sources.j2 # apt-репозитории в формате deb822
     │   └── opensearch_dashboards.yml.j2
     ├── files/opensearch-release.asc  # GPG-ключ репозитория
-    └── tests/                    # inventory + test.yml для прогона роли на самой машине
+    └── tests/                    # test.yml: роль + проверка автозапуска и hold
 ```
 
 Каждая директория роли что-то делает:
@@ -58,7 +58,7 @@ lab1/
 - **templates**: все шесть конфигов собираются через Jinja2;
 - **handlers** перезапускают сервисы только при изменении (подробности ниже);
 - **meta** описывает роль, а `argument_specs.yml` заставляет Ansible проверять типы параметров. Например, `opensearch_http_port: abc` упадёт сразу, а не на старте сервиса;
-- **tests** содержат минимальный плейбук, который запускает роль на `localhost` и дополнительно проверяет автозапуск и hold пакетов.
+- **tests** содержат плейбук, который прогоняет роль и дополнительно проверяет, что оба сервиса в автозапуске (`systemctl is-enabled`) и пакеты стоят на hold. Его можно запускать с управляющей машины или на самой целевой машине (`tests/inventory` = localhost). На нашем стенде результат: `failed=0`, `changed=0`.
 
 ## Что делает роль
 
@@ -131,6 +131,7 @@ export OPENSEARCH_ADMIN_PASSWORD='<пароль>'
 ../.venv/bin/ansible-playbook site.yml --tags verify          # только проверка готовности
 ../.venv/bin/ansible-playbook site.yml -e opensearch_heap_size=1g   # поменять параметр без правки файлов
 ../.venv/bin/ansible-lint site.yml                              # линтер (профиль production проходит)
+../.venv/bin/ansible-playbook -i inventory/hosts.yml roles/opensearch/tests/test.yml  # роль + проверка автозапуска и hold
 ```
 
 ## Результаты
