@@ -11,7 +11,7 @@
 | Целевая машина | VM Ubuntu 24.04 LTS (aarch64) в [Lima](https://lima-vm.io), 4 vCPU / 8 GB RAM / 30 GB диска |
 | OpenSearch / Dashboards | 3.8.0 из официального apt-репозитория `artifacts.opensearch.org` |
 
-Платить за сервер не стали: преподаватель предложил поднять виртуалку локально, а 4/8 на ноутбуке с 24 ГБ помещаются без проблем. Lima запускает VM через встроенный в macOS Virtualization.framework и сама пробрасывает порты гостя на `127.0.0.1`. Поэтому API (9200) и Dashboards (5601) открываются прямо с хоста. Описание VM лежит в [lima-vm.yaml](lima-vm.yaml).
+Платить за сервер я не стала: преподаватель предложил поднять виртуалку локально, а 4/8 на ноутбуке с 24 ГБ помещаются без проблем. Lima запускает VM через встроенный в macOS Virtualization.framework и сама пробрасывает порты гостя на `127.0.0.1`. Поэтому API (9200) и Dashboards (5601) открываются прямо с хоста. Описание VM лежит в [lima-vm.yaml](lima-vm.yaml).
 
 Роль не завязана на Lima: для удалённого сервера достаточно поменять хост в `inventory/hosts.yml`.
 
@@ -24,7 +24,7 @@ lab1/
 ├── lima-vm.yaml                  # описание VM
 ├── inventory/
 │   ├── hosts.yml
-│   └── group_vars/opensearch.yml # значения параметров для нашего стенда
+│   └── group_vars/opensearch.yml # значения параметров для моего стенда
 └── roles/opensearch/
     ├── defaults/main.yml         # параметры роли со значениями по умолчанию
     ├── vars/main.yml             # внутренние константы (пути, имена пакетов, URL API)
@@ -58,7 +58,7 @@ lab1/
 - **templates**: все шесть конфигов собираются через Jinja2;
 - **handlers** перезапускают сервисы только при изменении (подробности ниже);
 - **meta** описывает роль, а `argument_specs.yml` заставляет Ansible проверять типы параметров. Например, `opensearch_http_port: abc` упадёт сразу, а не на старте сервиса;
-- **tests** содержат плейбук, который прогоняет роль и дополнительно проверяет, что оба сервиса в автозапуске (`systemctl is-enabled`) и пакеты стоят на hold. Его можно запускать с управляющей машины или на самой целевой машине (`tests/inventory` = localhost). На нашем стенде результат: `failed=0`, `changed=0`.
+- **tests** содержат плейбук, который прогоняет роль и дополнительно проверяет, что оба сервиса работают и включены в автозапуск (`service_facts`) и что пакеты стоят на hold. Его можно запускать с управляющей машины или на самой целевой машине (`tests/inventory` = localhost). На моём стенде результат: `failed=0`, `changed=0`.
 
 ## Что делает роль
 
@@ -67,22 +67,22 @@ lab1/
 3. **Репозиторий.** Ставит зависимости, кладёт ключ и файл `/etc/apt/sources.list.d/opensearch.sources`. `apt update` выполняется handler'ом, только если файл изменился.
 4. **OpenSearch.** `apt install opensearch=3.8.0` и `apt-mark hold`. Затем шаблоны `opensearch.yml` и `jvm.options.d/heap.options`, systemd drop-in с `LimitNOFILE`, `LimitMEMLOCK=infinity` (для `bootstrap.memory_lock`) и увеличенным `TimeoutStartSec`. В конце `enabled: true` + `state: started`.
 5. **Dashboards.** То же самое: пакет нужной версии, hold, шаблон `opensearch_dashboards.yml`, автозапуск.
-6. **Проверка.** `GET _cluster/health` через модуль `uri` с `until`/`retries`/`delay`: ждём статус из `opensearch_healthcheck_statuses`, но не больше 30 × 10 секунд. Затем проверяем, что `GET /` отдаёт именно `3.8.0`, и ждём `GET /api/status` у Dashboards в состоянии `green`.
+6. **Проверка.** `GET _cluster/health` через модуль `uri` с `until`/`retries`/`delay`: роль ждёт статус из `opensearch_healthcheck_statuses`, но не больше 30 × 10 секунд. Затем проверяет, что `GET /` отдаёт именно `3.8.0`, и ждёт `GET /api/status` у Dashboards в состоянии `green`.
 
 ### Handlers и лишние рестарты
 
 - Конфиги OpenSearch (`opensearch.yml`, heap, systemd override) и смена версии пакета вызывают `Перезапустить OpenSearch`. Конфиг Dashboards вызывает только `Перезапустить OpenSearch Dashboards`.
 - Изменение systemd override вызывает ещё и `daemon-reload`. Handlers выполняются в порядке файла, поэтому reload успевает раньше рестарта.
-- При первом прогоне сервис сначала запускается задачей `state: started`, и handler рестарта после этого бессмысленен. Поэтому у handler'а стоит условие `when: opensearch_service_start is not changed`: если сервис только что стартовал, второй раз его не дёргаем.
+- При первом прогоне сервис сначала запускается задачей `state: started`, и handler рестарта после этого бессмысленен. Поэтому у handler'а стоит условие `when: opensearch_service_start is not changed`: если сервис только что стартовал, второй раз его не перезапускают.
 - Перед проверкой стоит `flush_handlers`, чтобы проверялось уже перезапущенное состояние.
 
 ### Автозапуск после перезагрузки
 
-Это `systemctl enable` для обоих сервисов, плюс sysctl в `/etc/sysctl.d/` и swap, закомментированный в fstab: после ребута всё нужное OpenSearch применяется без Ansible. Мы проверили это перезагрузкой VM (скриншот ниже).
+Это `systemctl enable` для обоих сервисов, плюс sysctl в `/etc/sysctl.d/` и swap, закомментированный в fstab: после ребута всё нужное OpenSearch применяется без Ansible. Я проверила это перезагрузкой VM (скриншот ниже).
 
 ## Параметры роли
 
-Все параметры лежат в [defaults/main.yml](roles/opensearch/defaults/main.yml). Принцип выбора: в defaults выносим то, что реально отличается от стенда к стенду (версии, адреса, порты, память, безопасность, пути к данным, зеркало). Всё, что диктует пакет, остаётся в vars.
+Все параметры лежат в [defaults/main.yml](roles/opensearch/defaults/main.yml). Принцип выбора: в defaults я вынесла то, что реально отличается от стенда к стенду (версии, адреса, порты, память, безопасность, пути к данным, зеркало). Всё, что диктует пакет, остаётся в vars.
 
 | Параметр | По умолчанию | Зачем |
 |---|---|---|
@@ -108,7 +108,7 @@ lab1/
 | `opensearch_dashboards_host` / `_port` | `0.0.0.0` / `5601` | Адрес и порт веб-интерфейса |
 | `opensearch_extra_config` / `opensearch_dashboards_extra_config` | `{}` | Любые дополнительные настройки, которые дописываются в конфиг без правки шаблона |
 
-На нашем стенде в [group_vars](inventory/group_vars/opensearch.yml) переопределены только имя кластера (`devops-lab1`) и heap (`2g`). Пароль в репозитории не хранится: он читается из переменной окружения `OPENSEARCH_ADMIN_PASSWORD`.
+На моём стенде в [group_vars](inventory/group_vars/opensearch.yml) переопределены только имя кластера (`devops-lab1`) и heap (`2g`). Пароль в репозитории не хранится: он читается из переменной окружения `OPENSEARCH_ADMIN_PASSWORD`.
 
 ## Запуск
 
@@ -138,7 +138,7 @@ export OPENSEARCH_ADMIN_PASSWORD='<пароль>'
 
 ### Создание VM
 
-Чтобы снять установку с нуля, мы пересоздали VM: `limactl delete` + `limactl start`.
+Чтобы снять установку с нуля, я пересоздала VM: `limactl delete` + `limactl start`.
 
 ![создание VM](images/01-vm-create.jpg)
 
@@ -168,7 +168,7 @@ export OPENSEARCH_ADMIN_PASSWORD='<пароль>'
 
 ![handler, начало](images/05-handler-start.jpg)
 
-После неё handler перезапустил OpenSearch, поэтому проверка готовности один раз сделала retry, пока узел поднимался. Итог: `changed=2` (шаблон heap + рестарт OpenSearch). Dashboards не трогали. Ниже на скриншоте видно начало следующего обычного прогона, который вернул heap на 2g из `group_vars`.
+После неё handler перезапустил OpenSearch, поэтому проверка готовности один раз сделала retry, пока узел поднимался. Итог: `changed=2` (шаблон heap + рестарт OpenSearch). Dashboards не перезапускался. Ниже на скриншоте видно начало следующего обычного прогона, который вернул heap на 2g из `group_vars`.
 
 ![handler, конец](images/06-handler-end.jpg)
 
@@ -210,7 +210,7 @@ curl -sk -u admin:"$OPENSEARCH_ADMIN_PASSWORD" "https://127.0.0.1:9200/_cluster/
 
 ### После перезагрузки VM
 
-`limactl stop` + `limactl start`: после старта Lima сама пробросила 9200 и 5601 на хост. Оба сервиса `active`, хотя Ansible мы не запускали.
+`limactl stop` + `limactl start`: после старта Lima сама пробросила 9200 и 5601 на хост. Оба сервиса `active`, хотя Ansible я не запускала.
 
 ![после ребута](images/08-reboot.jpg)
 
@@ -226,9 +226,9 @@ curl -sk -u admin:"$OPENSEARCH_ADMIN_PASSWORD" "https://127.0.0.1:9200/_cluster/
 
 ## Грабли
 
-**Грабля 1: «последняя версия» уже не 3.8.** В apt-репозитории `3.x` лежат все версии до 3.9.0. Обычный `apt install opensearch` поставил бы 3.9, а `apt upgrade` когда-нибудь тихо обновил бы кластер. Поэтому ставим `opensearch=3.8.0` и вешаем `apt-mark hold`. А чтобы версию всё-таки можно было сменить через переменную, в задаче `apt` включён `allow_change_held_packages`.
+**Грабля 1: «последняя версия» уже не 3.8.** В apt-репозитории `3.x` лежат все версии до 3.9.0. Обычный `apt install opensearch` поставил бы 3.9, а `apt upgrade` когда-нибудь тихо обновил бы кластер. Поэтому роль ставит `opensearch=3.8.0` и вешает `apt-mark hold`. А чтобы версию всё-таки можно было сменить через переменную, в задаче `apt` включён `allow_change_held_packages`.
 
-**Грабля 2: шаблон затирает демо-конфигурацию безопасности.** Начиная с 2.12 deb-пакет при установке с `OPENSEARCH_INITIAL_ADMIN_PASSWORD` генерирует демо-сертификаты и *дописывает* настройки `plugins.security.*` в `opensearch.yml`. Наш шаблон перезаписывает файл целиком, и после первого же прогона OpenSearch остался бы без TLS-настроек. Решение: эти настройки перенесены в шаблон под `{% if opensearch_security_enabled %}`, а сертификаты оставляем те, что сгенерировал пакет. (Это видно в `/var/lib/dpkg/info/opensearch.postinst` и в логе `/var/log/opensearch/install_demo_configuration.log`.) Там же нашлись флаги `DISABLE_INSTALL_DEMO_CONFIG` и `DISABLE_SECURITY_PLUGIN`, которые появились в 3.7. Роль передаёт их при `opensearch_security_enabled: false`.
+**Грабля 2: шаблон затирает демо-конфигурацию безопасности.** Начиная с 2.12 deb-пакет при установке с `OPENSEARCH_INITIAL_ADMIN_PASSWORD` генерирует демо-сертификаты и *дописывает* настройки `plugins.security.*` в `opensearch.yml`. Мой шаблон перезаписывает файл целиком, и после первого же прогона OpenSearch остался бы без TLS-настроек. Решение: эти настройки перенесены в шаблон под `{% if opensearch_security_enabled %}`, а сертификаты остаются те, что сгенерировал пакет. (Это видно в `/var/lib/dpkg/info/opensearch.postinst` и в логе `/var/log/opensearch/install_demo_configuration.log`.) Там же нашлись флаги `DISABLE_INSTALL_DEMO_CONFIG` и `DISABLE_SECURITY_PLUGIN`, которые появились в 3.7. Роль передаёт их при `opensearch_security_enabled: false`.
 
 **Грабля 3: двойной рестарт на первом прогоне.** Установка пакета и шаблоны вызывают handler рестарта, но сервис только что запустила задача `state: started`. Без условия первый прогон заканчивался бы лишним рестартом сразу после запуска. Отсюда `when: ... is not changed` в handlers.
 
@@ -243,10 +243,10 @@ curl -sk -u admin:"$OPENSEARCH_ADMIN_PASSWORD" "https://127.0.0.1:9200/_cluster/
 - Всё переживает перезагрузку без Ansible.
 - Параметры вынесены в defaults и проверяются через `argument_specs`, пароль не хранится в коде.
 
-Не проверяли: ветку `opensearch_security_enabled: false`. Она рассчитана на установку с нуля. Переключить уже работающий узел из security в plain HTTP и обратно роль не умеет, потому что плагин Dashboards при выключении удаляется.
+Не проверяла: ветку `opensearch_security_enabled: false`. Она рассчитана на установку с нуля. Переключить уже работающий узел из security в plain HTTP и обратно роль не умеет, потому что плагин Dashboards при выключении удаляется.
 
 ## Про инструменты
 
-- **Ansible**: декларативно описываем, *каким* должен быть сервер, а не *что* на нём выполнить. Самое полезное в этой лабе: handlers + `notify` (рестарт только при изменении) и `until`/`retries` (вместо `sleep 60` и надежды).
+- **Ansible**: декларативно описываешь, *каким* должен быть сервер, а не *что* на нём выполнить. Самое полезное в этой лабе: handlers + `notify` (рестарт только при изменении) и `until`/`retries` (вместо `sleep 60` и надежды).
 - **OpenSearch**: форк Elasticsearch 7.10 от AWS под лицензией Apache 2.0. Поисковый движок и хранилище логов, Dashboards — его веб-интерфейс (аналог Kibana).
 - **Lima**: Linux-VM на macOS одной командой, с пробросом портов и готовым SSH-конфигом.
