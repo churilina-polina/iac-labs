@@ -1,5 +1,5 @@
 ---
-- name: Установить OpenSearch {{ opensearch_version }}
+- name: Install OpenSearch {{ opensearch_version }}
   ansible.builtin.apt:
     name: "{{ opensearch_package }}={{ opensearch_version }}"
     state: present
@@ -12,14 +12,14 @@
     OPENSEARCH_INITIAL_ADMIN_PASSWORD: "{{ opensearch_admin_password if opensearch_security_enabled else '' }}"
     DISABLE_INSTALL_DEMO_CONFIG: "{{ (not opensearch_security_enabled) | string | lower }}"
     DISABLE_SECURITY_PLUGIN: "{{ (not opensearch_security_enabled) | string | lower }}"
-  notify: Перезапустить OpenSearch
+  notify: Restart OpenSearch
 
-- name: Зафиксировать версию OpenSearch (apt-mark hold)
+- name: Hold OpenSearch package version
   ansible.builtin.dpkg_selections:
     name: "{{ opensearch_package }}"
     selection: hold
 
-- name: Создать каталоги данных и логов
+- name: Create data and log directories
   ansible.builtin.file:
     path: "{{ item }}"
     state: directory
@@ -30,25 +30,25 @@
     - "{{ opensearch_data_path }}"
     - "{{ opensearch_logs_path }}"
 
-- name: Сформировать opensearch.yml
+- name: Render opensearch.yml
   ansible.builtin.template:
     src: opensearch.yml.j2
     dest: "{{ opensearch_conf_dir }}/opensearch.yml"
     owner: root
     group: "{{ opensearch_user }}"
     mode: "0640"
-  notify: Перезапустить OpenSearch
+  notify: Restart OpenSearch
 
-- name: Задать размер heap JVM
+- name: Configure JVM heap size
   ansible.builtin.template:
     src: heap.options.j2
     dest: "{{ opensearch_conf_dir }}/jvm.options.d/heap.options"
     owner: root
     group: "{{ opensearch_user }}"
     mode: "0640"
-  notify: Перезапустить OpenSearch
+  notify: Restart OpenSearch
 
-- name: Создать каталог для override systemd
+- name: Create systemd override directory
   ansible.builtin.file:
     path: /etc/systemd/system/opensearch.service.d
     state: directory
@@ -56,7 +56,7 @@
     group: root
     mode: "0755"
 
-- name: Задать лимиты сервиса через systemd override
+- name: Configure service limits via systemd override
   ansible.builtin.template:
     src: opensearch-override.conf.j2
     dest: /etc/systemd/system/opensearch.service.d/override.conf
@@ -64,10 +64,10 @@
     group: root
     mode: "0644"
   notify:
-    - Перечитать конфигурацию systemd
-    - Перезапустить OpenSearch
+    - Reload systemd
+    - Restart OpenSearch
 
-- name: Включить автозапуск и запустить OpenSearch
+- name: Enable and start OpenSearch
   ansible.builtin.systemd_service:
     name: opensearch
     enabled: true

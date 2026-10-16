@@ -1,12 +1,12 @@
 ---
-- name: Установить зависимости
+- name: Install dependencies
   ansible.builtin.apt:
     name: "{{ opensearch_dependencies }}"
     state: present
     update_cache: true
     cache_valid_time: 3600
 
-- name: Положить ключ подписи репозитория OpenSearch
+- name: Install OpenSearch repository signing key
   ansible.builtin.copy:
     src: opensearch-release.asc
     dest: "{{ opensearch_keyring_path }}"
@@ -14,15 +14,15 @@
     group: root
     mode: "0644"
 
-- name: Подключить репозитории OpenSearch и Dashboards
+- name: Add OpenSearch and Dashboards apt repositories
   ansible.builtin.template:
     src: opensearch.sources.j2
     dest: /etc/apt/sources.list.d/opensearch.sources
     owner: root
     group: root
     mode: "0644"
-  notify: Обновить кэш apt
+  notify: Update apt cache
 
 # пакеты ставятся следующими задачами, кэш должен быть свежим уже сейчас
-- name: Обновить кэш apt, если репозитории изменились
+- name: Refresh apt cache if repositories changed
   ansible.builtin.meta: flush_handlers

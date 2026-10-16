@@ -1,5 +1,5 @@
 ---
-- name: Убедиться, что дистрибутив поддерживается
+- name: Assert supported distribution and architecture
   ansible.builtin.assert:
     that:
       - ansible_facts['distribution'] in opensearch_supported_distributions
@@ -9,7 +9,7 @@
       а здесь {{ ansible_facts['distribution'] }} {{ ansible_facts['architecture'] }}
     quiet: true
 
-- name: Проверить пароль admin (требования security plugin)
+- name: Assert admin password meets security plugin policy
   ansible.builtin.assert:
     that:
       - opensearch_admin_password | length >= 8
@@ -24,7 +24,7 @@
   when: opensearch_security_enabled
   no_log: true
 
-- name: Убедиться, что версии OpenSearch и Dashboards совпадают
+- name: Assert OpenSearch and Dashboards versions match
   ansible.builtin.assert:
     that: opensearch_dashboards_version == opensearch_version
     fail_msg: "Dashboards {{ opensearch_dashboards_version }} не работает с OpenSearch {{ opensearch_version }}"

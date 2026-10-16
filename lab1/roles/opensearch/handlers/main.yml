@@ -1,25 +1,25 @@
 ---
-- name: Обновить кэш apt
+- name: Update apt cache
   ansible.builtin.apt:
     update_cache: true
 
-- name: Применить sysctl
+- name: Apply sysctl
   ansible.builtin.command: sysctl --system
   changed_when: true
 
-- name: Перечитать конфигурацию systemd
+- name: Reload systemd
   ansible.builtin.systemd_service:
     daemon_reload: true
 
 # Если сервис только что запущен этим же прогоном, он уже читает новую
 # конфигурацию, и второй перезапуск ничего не даёт.
-- name: Перезапустить OpenSearch
+- name: Restart OpenSearch
   ansible.builtin.systemd_service:
     name: opensearch
     state: restarted
   when: opensearch_service_start is not changed
 
-- name: Перезапустить OpenSearch Dashboards
+- name: Restart OpenSearch Dashboards
   ansible.builtin.systemd_service:
     name: opensearch-dashboards
     state: restarted

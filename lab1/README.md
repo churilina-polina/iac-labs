@@ -71,7 +71,7 @@ lab1/
 
 ### Handlers и лишние рестарты
 
-- Конфиги OpenSearch (`opensearch.yml`, heap, systemd override) и смена версии пакета вызывают `Перезапустить OpenSearch`. Конфиг Dashboards вызывает только `Перезапустить OpenSearch Dashboards`.
+- Конфиги OpenSearch (`opensearch.yml`, heap, systemd override) и смена версии пакета вызывают `Restart OpenSearch`. Конфиг Dashboards вызывает только `Restart OpenSearch Dashboards`.
 - Изменение systemd override вызывает ещё и `daemon-reload`. Handlers выполняются в порядке файла, поэтому reload успевает раньше рестарта.
 - При первом прогоне сервис сначала запускается задачей `state: started`, и handler рестарта после этого бессмысленен. Поэтому у handler'а стоит условие `when: opensearch_service_start is not changed`: если сервис только что стартовал, второй раз его не перезапускают.
 - Перед проверкой стоит `flush_handlers`, чтобы проверялось уже перезапущенное состояние.
@@ -136,6 +136,51 @@ export OPENSEARCH_ADMIN_PASSWORD='<пароль>'
 
 ## Результаты
 
+> **Про имена задач.** После проверки лабы я переименовала все задачи и handlers на английский, как рекомендовал преподаватель. Роль с новыми именами я прогнала заново на той же VM: при смене heap срабатывает `Restart OpenSearch`, повторный прогон даёт `changed=0`, тест и ansible-lint проходят. Скриншоты ниже сняты до переименования, поэтому имена на них русские. Соответствие старых и новых имён:
+
+<details>
+<summary>Старое имя → новое</summary>
+
+| На скриншоте | В коде сейчас |
+|---|---|
+| Убедиться, что дистрибутив поддерживается | `Assert supported distribution and architecture` |
+| Проверить пароль admin (требования security plugin) | `Assert admin password meets security plugin policy` |
+| Убедиться, что версии OpenSearch и Dashboards совпадают | `Assert OpenSearch and Dashboards versions match` |
+| Установить зависимости | `Install dependencies` |
+| Положить ключ подписи репозитория OpenSearch | `Install OpenSearch repository signing key` |
+| Подключить репозитории OpenSearch и Dashboards | `Add OpenSearch and Dashboards apt repositories` |
+| Обновить кэш apt, если репозитории изменились | `Refresh apt cache if repositories changed` |
+| Обновить кэш apt | `Update apt cache` (handler) |
+| Дождаться готовности кластера (GET _cluster/health) | `Wait for cluster health (GET _cluster/health)` |
+| Показать состояние кластера | `Show cluster health` |
+| Проверить, что запущена нужная версия | `Verify running OpenSearch version` |
+| Дождаться готовности Dashboards (GET /api/status) | `Wait for Dashboards status (GET /api/status)` |
+| Развернуть OpenSearch single-node | `Deploy OpenSearch single-node` |
+| Применить отложенные перезапуски до проверки | `Flush pending restarts before verification` |
+| Задать параметры ядра для OpenSearch | `Configure kernel parameters` |
+| Применить sysctl | `Apply sysctl` (handler) |
+| Отключить swap прямо сейчас | `Disable swap now` |
+| Закомментировать swap в fstab, чтобы он не вернулся после перезагрузки | `Disable swap in fstab` |
+| Применить системные настройки до установки сервиса | `Apply system settings before service install` |
+| Установить OpenSearch 3.8.0 | `Install OpenSearch 3.8.0` |
+| Перезапустить OpenSearch Dashboards | `Restart OpenSearch Dashboards` (handler) |
+| Перезапустить OpenSearch | `Restart OpenSearch` (handler) |
+| Зафиксировать версию OpenSearch (apt-mark hold) | `Hold OpenSearch package version` |
+| Создать каталоги данных и логов | `Create data and log directories` |
+| Сформировать opensearch.yml | `Render opensearch.yml` |
+| Задать размер heap JVM | `Configure JVM heap size` |
+| Создать каталог для override systemd | `Create systemd override directory` |
+| Задать лимиты сервиса через systemd override | `Configure service limits via systemd override` |
+| Перечитать конфигурацию systemd | `Reload systemd` (handler) |
+| Включить автозапуск и запустить OpenSearch | `Enable and start OpenSearch` |
+| Установить OpenSearch Dashboards 3.8.0 | `Install OpenSearch Dashboards 3.8.0` |
+| Зафиксировать версию Dashboards (apt-mark hold) | `Hold Dashboards package version` |
+| Удалить плагин securityDashboards при выключенной безопасности | `Remove securityDashboards plugin when security is disabled` |
+| Сформировать opensearch_dashboards.yml | `Render opensearch_dashboards.yml` |
+| Включить автозапуск и запустить Dashboards | `Enable and start Dashboards` |
+
+</details>
+
 ### Создание VM
 
 Чтобы снять установку с нуля, я пересоздала VM: `limactl delete` + `limactl start`.
@@ -144,7 +189,7 @@ export OPENSEARCH_ADMIN_PASSWORD='<пароль>'
 
 ### Первый прогон
 
-Всё установилось с нуля: ключ, репозитории, пакеты 3.8.0 на hold, конфиги из шаблонов. Handlers `Применить sysctl` и `Обновить кэш apt` сработали сразу, прямо посреди прогона, благодаря `flush_handlers`.
+Всё установилось с нуля: ключ, репозитории, пакеты 3.8.0 на hold, конфиги из шаблонов. Handlers `Apply sysctl` и `Update apt cache` сработали сразу, прямо посреди прогона, благодаря `flush_handlers`.
 
 ![первый прогон, начало](images/02-first-run-start.jpg)
 
@@ -164,7 +209,7 @@ export OPENSEARCH_ADMIN_PASSWORD='<пароль>'
 
 ### Изменение параметра → handler
 
-`-e opensearch_heap_size=1g`: из всех задач изменилась только `Задать размер heap JVM`.
+`-e opensearch_heap_size=1g`: из всех задач изменилась только `Configure JVM heap size`.
 
 ![handler, начало](images/05-handler-start.jpg)
 
@@ -172,7 +217,7 @@ export OPENSEARCH_ADMIN_PASSWORD='<пароль>'
 
 ![handler, конец](images/06-handler-end.jpg)
 
-Сам запуск handler'а крупно: `RUNNING HANDLER [Перезапустить OpenSearch]` → `changed`. Сразу после рестарта узел ещё поднимается, поэтому `_cluster/health` один раз делает retry, а дальше снова `green`.
+Сам запуск handler'а крупно: `RUNNING HANDLER [Restart OpenSearch]` → `changed`. Сразу после рестарта узел ещё поднимается, поэтому `_cluster/health` один раз делает retry, а дальше снова `green`.
 
 ![handler рестарта](images/06b-handler-restart.jpg)
 

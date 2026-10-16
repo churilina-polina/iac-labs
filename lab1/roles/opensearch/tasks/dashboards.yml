@@ -1,35 +1,35 @@
 ---
-- name: Установить OpenSearch Dashboards {{ opensearch_dashboards_version }}
+- name: Install OpenSearch Dashboards {{ opensearch_dashboards_version }}
   ansible.builtin.apt:
     name: "{{ opensearch_dashboards_package }}={{ opensearch_dashboards_version }}"
     state: present
     allow_downgrade: true
     allow_change_held_packages: true
-  notify: Перезапустить OpenSearch Dashboards
+  notify: Restart OpenSearch Dashboards
 
-- name: Зафиксировать версию Dashboards (apt-mark hold)
+- name: Hold Dashboards package version
   ansible.builtin.dpkg_selections:
     name: "{{ opensearch_dashboards_package }}"
     selection: hold
 
 # Плагин безопасности Dashboards не стартует, если security в OpenSearch выключен.
-- name: Удалить плагин securityDashboards при выключенной безопасности
+- name: Remove securityDashboards plugin when security is disabled
   ansible.builtin.command:
     cmd: "{{ opensearch_dashboards_home }}/bin/opensearch-dashboards-plugin remove securityDashboards --allow-root"
     removes: "{{ opensearch_dashboards_home }}/plugins/securityDashboards"
   when: not opensearch_security_enabled
-  notify: Перезапустить OpenSearch Dashboards
+  notify: Restart OpenSearch Dashboards
 
-- name: Сформировать opensearch_dashboards.yml
+- name: Render opensearch_dashboards.yml
   ansible.builtin.template:
     src: opensearch_dashboards.yml.j2
     dest: "{{ opensearch_dashboards_conf_dir }}/opensearch_dashboards.yml"
     owner: root
     group: "{{ opensearch_dashboards_user }}"
     mode: "0640"
-  notify: Перезапустить OpenSearch Dashboards
+  notify: Restart OpenSearch Dashboards
 
-- name: Включить автозапуск и запустить Dashboards
+- name: Enable and start Dashboards
   ansible.builtin.systemd_service:
     name: opensearch-dashboards
     enabled: true

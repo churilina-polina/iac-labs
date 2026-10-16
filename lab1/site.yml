@@ -1,5 +1,5 @@
 ---
-- name: Развернуть OpenSearch single-node
+- name: Deploy OpenSearch single-node
   hosts: opensearch
   become: true
   roles:

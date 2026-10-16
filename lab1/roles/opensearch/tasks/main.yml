@@ -1,28 +1,28 @@
 ---
-- name: Проверить входные параметры и платформу
+- name: Run preflight checks
   ansible.builtin.import_tasks: preflight.yml
   tags: [opensearch, preflight]
 
-- name: Подготовить систему (sysctl, swap)
+- name: Prepare system (sysctl, swap)
   ansible.builtin.import_tasks: system.yml
   tags: [opensearch, system]
 
-- name: Подключить apt-репозитории OpenSearch
+- name: Configure OpenSearch apt repositories
   ansible.builtin.import_tasks: repository.yml
   tags: [opensearch, install]
 
-- name: Установить и настроить OpenSearch
+- name: Install and configure OpenSearch
   ansible.builtin.import_tasks: opensearch.yml
   tags: [opensearch, install, config]
 
-- name: Установить и настроить OpenSearch Dashboards
+- name: Install and configure OpenSearch Dashboards
   ansible.builtin.import_tasks: dashboards.yml
   when: opensearch_dashboards_enabled
   tags: [opensearch, dashboards]
 
-- name: Применить отложенные перезапуски до проверки
+- name: Flush pending restarts before verification
   ansible.builtin.meta: flush_handlers
 
-- name: Проверить готовность через API
+- name: Verify readiness via API
   ansible.builtin.import_tasks: verify.yml
   tags: [opensearch, verify]

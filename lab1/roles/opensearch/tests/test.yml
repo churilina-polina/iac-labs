@@ -2,7 +2,7 @@
 # Прогон роли + дополнительные проверки. Пароль берётся из окружения OPENSEARCH_ADMIN_PASSWORD.
 #   с управляющей машины (из lab1/): ansible-playbook -i inventory/hosts.yml roles/opensearch/tests/test.yml
 #   на самой целевой машине:         ansible-playbook -i tests/inventory tests/test.yml
-- name: Проверка роли opensearch
+- name: Test opensearch role
   hosts: all
   become: true
   vars:
@@ -11,10 +11,10 @@
     - role: opensearch
 
   post_tasks:
-    - name: Собрать состояние systemd-сервисов
+    - name: Gather service facts
       ansible.builtin.service_facts:
 
-    - name: Сервисы включены в автозапуск и работают
+    - name: Assert services are enabled and running
       ansible.builtin.assert:
         that:
           - ansible_facts['services'][item]['status'] == 'enabled'
@@ -24,7 +24,7 @@
         - opensearch.service
         - opensearch-dashboards.service
 
-    - name: Версии пакетов зафиксированы
+    - name: Assert packages are held
       ansible.builtin.command: apt-mark showhold
       register: opensearch_test_held
       changed_when: false

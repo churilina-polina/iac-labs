@@ -1,5 +1,5 @@
 ---
-- name: Дождаться готовности кластера (GET _cluster/health)
+- name: Wait for cluster health (GET _cluster/health)
   ansible.builtin.uri:
     url: "{{ opensearch_api_url }}/_cluster/health"
     url_username: "{{ 'admin' if opensearch_security_enabled else omit }}"
@@ -15,11 +15,11 @@
   retries: "{{ opensearch_healthcheck_retries }}"
   delay: "{{ opensearch_healthcheck_delay }}"
 
-- name: Показать состояние кластера
+- name: Show cluster health
   ansible.builtin.debug:
     var: opensearch_health.json
 
-- name: Проверить, что запущена нужная версия
+- name: Verify running OpenSearch version
   ansible.builtin.uri:
     url: "{{ opensearch_api_url }}/"
     url_username: "{{ 'admin' if opensearch_security_enabled else omit }}"
@@ -29,7 +29,7 @@
   register: opensearch_root
   failed_when: opensearch_root.json.version.number != opensearch_version
 
-- name: Дождаться готовности Dashboards (GET /api/status)
+- name: Wait for Dashboards status (GET /api/status)
   ansible.builtin.uri:
     url: "{{ opensearch_dashboards_url }}/api/status"
     url_username: "{{ 'admin' if opensearch_security_enabled else omit }}"
