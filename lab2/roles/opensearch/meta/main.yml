@@ -1,0 +1,17 @@
+---
+galaxy_info:
+  role_name: opensearch
+  namespace: churilina
+  author: Polina Churilina
+  description: Установка OpenSearch и Dashboards (single-node), ролевая модель через Security REST API и data stream для логов
+  license: MIT
+  min_ansible_version: "2.15"
+  platforms:
+    - name: Ubuntu
+      versions: [jammy, noble]
+    - name: Debian
+      versions: [bookworm]
+  galaxy_tags: [opensearch, search, logging]
+
+# Роль самодостаточна: сторонние роли не используются
+dependencies: []

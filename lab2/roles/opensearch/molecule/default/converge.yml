@@ -1,0 +1,6 @@
+---
+- name: Converge
+  hosts: opensearch
+  become: true
+  roles:
+    - role: opensearch

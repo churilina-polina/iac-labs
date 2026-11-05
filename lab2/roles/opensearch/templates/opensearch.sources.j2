@@ -1,0 +1,14 @@
+# {{ ansible_managed }}
+Types: deb
+URIs: {{ opensearch_repo_url }}/opensearch/{{ opensearch_repo_branch }}/apt
+Suites: stable
+Components: main
+Signed-By: {{ opensearch_keyring_path }}
+{% if opensearch_dashboards_enabled %}
+
+Types: deb
+URIs: {{ opensearch_repo_url }}/opensearch-dashboards/{{ opensearch_repo_branch }}/apt
+Suites: stable
+Components: main
+Signed-By: {{ opensearch_keyring_path }}
+{% endif %}

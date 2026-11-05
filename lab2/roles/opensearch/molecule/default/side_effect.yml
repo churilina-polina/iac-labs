@@ -1,0 +1,10 @@
+---
+# Перезагрузка перед проверками: verify подтверждает, что после ребута всё
+# поднимается само, а пользователи, роли и data stream никуда не делись.
+- name: Reboot VM
+  hosts: opensearch
+  become: true
+  tasks:
+    - name: Reboot and wait for SSH
+      ansible.builtin.reboot:
+        reboot_timeout: 300

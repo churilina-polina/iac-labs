@@ -1,0 +1,159 @@
+---
+# Сервис должен не просто быть запущен, а реально работать: быть настроен как задано,
+# требовать авторизацию, принимать данные и отдавать их обратно, переживать перезагрузку.
+# Сразу после перезагрузки сервис ещё запускается (activating), поэтому ждём, но ограниченно
+- name: "S0 | Wait until services are active and enabled"
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+  register: opensearch_s0_service
+  until:
+    - opensearch_s0_service.status.ActiveState == 'active'
+    - opensearch_s0_service.status.UnitFileState == 'enabled'
+  retries: 30
+  delay: 5
+  loop:
+    - opensearch
+    - opensearch-dashboards
+
+- name: "S0 | Get kernel and package state"
+  ansible.builtin.command: "{{ item }}"
+  register: opensearch_s0_system
+  changed_when: false
+  loop:
+    - sysctl -n vm.max_map_count
+    - apt-mark showhold
+
+- name: "S0 | Assert vm.max_map_count survived reboot and packages are held"
+  ansible.builtin.assert:
+    that:
+      - opensearch_s0_system.results[0].stdout | int >= 262144
+      - "'opensearch' in opensearch_s0_system.results[1].stdout_lines"
+      - "'opensearch-dashboards' in opensearch_s0_system.results[1].stdout_lines"
+    quiet: true
+
+- name: "S0 | Assert anonymous request is rejected"
+  ansible.builtin.uri:
+    url: "{{ api_url }}/"
+    force_basic_auth: false
+    status_code: 401
+
+- name: "S0 | Assert wrong password is rejected"
+  ansible.builtin.uri:
+    url: "{{ api_url }}/"
+    url_username: admin
+    url_password: definitely-wrong-password
+    status_code: 401
+
+# Индексы от прерванного прогона с репликой делали бы кластер yellow
+- name: "S0 | Remove test indices left from an interrupted run"
+  ansible.builtin.uri:
+    url: "{{ api_url }}/{{ item }}"
+    method: DELETE
+    url_username: admin
+    url_password: "{{ opensearch_admin_password }}"
+    status_code: [200, 404]
+  loop:
+    - verify-smoke
+    - "{{ foreign_index }}"
+
+- name: "S0 | Wait for cluster health after reboot"
+  ansible.builtin.uri:
+    url: "{{ api_url }}/_cluster/health"
+    url_username: admin
+    url_password: "{{ opensearch_admin_password }}"
+  register: opensearch_s0_health
+  until: opensearch_s0_health.status == 200 and opensearch_s0_health.json.status == 'green'
+  retries: 30
+  delay: 10
+
+- name: "S0 | Show cluster health"
+  ansible.builtin.debug:
+    var: opensearch_s0_health.json
+
+- name: "S0 | Assert single healthy node in the configured cluster"
+  ansible.builtin.assert:
+    that:
+      - opensearch_s0_health.json.cluster_name == opensearch_cluster_name
+      - opensearch_s0_health.json.number_of_nodes == 1
+      - opensearch_s0_health.json.number_of_data_nodes == 1
+      - opensearch_s0_health.json.unassigned_shards == 0
+      - opensearch_s0_health.json.timed_out == false
+    quiet: true
+
+- name: "S0 | Get node information"
+  ansible.builtin.uri:
+    url: "{{ api_url }}/_nodes/_local?filter_path=nodes.*.version,nodes.*.process.mlockall,nodes.*.jvm.mem.heap_max_in_bytes,nodes.*.plugins.name"
+    url_username: admin
+    url_password: "{{ opensearch_admin_password }}"
+  register: opensearch_s0_nodes
+
+- name: "S0 | Assert version, heap, memory lock and security plugin"
+  vars:
+    node: "{{ opensearch_s0_nodes.json.nodes.values() | first }}"
+  ansible.builtin.assert:
+    that:
+      - node.version == opensearch_version
+      - node.process.mlockall == true
+      - node.jvm.mem.heap_max_in_bytes == 2147483648
+      - "'opensearch-security' in (node.plugins | map(attribute='name'))"
+    quiet: true
+
+- name: "S0 | Write a document to a temporary index"
+  ansible.builtin.uri:
+    url: "{{ api_url }}/verify-smoke/_doc/1?refresh=true"
+    method: PUT
+    url_username: admin
+    url_password: "{{ opensearch_admin_password }}"
+    body_format: json
+    body:
+      marker: "{{ opensearch_test_marker }}"
+    status_code: [200, 201]
+
+- name: "S0 | Find the document by search"
+  ansible.builtin.uri:
+    url: "{{ api_url }}/verify-smoke/_search"
+    method: POST
+    url_username: admin
+    url_password: "{{ opensearch_admin_password }}"
+    body_format: json
+    body:
+      query:
+        match:
+          marker: "{{ opensearch_test_marker }}"
+  register: opensearch_s0_search
+  failed_when: opensearch_s0_search.json.hits.total.value != 1
+
+- name: "S0 | Delete the temporary index"
+  ansible.builtin.uri:
+    url: "{{ api_url }}/verify-smoke"
+    method: DELETE
+    url_username: admin
+    url_password: "{{ opensearch_admin_password }}"
+
+- name: "S0 | Get data stream and index template"
+  ansible.builtin.uri:
+    url: "{{ api_url }}/{{ item }}"
+    url_username: admin
+    url_password: "{{ opensearch_admin_password }}"
+  register: opensearch_s0_logs
+  loop:
+    - "_data_stream/{{ data_stream }}"
+    - "_index_template/{{ data_stream }}"
+
+- name: "S0 | Assert data stream is healthy and created from the template"
+  ansible.builtin.assert:
+    that:
+      - (opensearch_s0_logs.results[0].json.data_streams | first).status == 'GREEN'
+      - (opensearch_s0_logs.results[0].json.data_streams | first).template == data_stream
+      - (opensearch_s0_logs.results[1].json.index_templates | first).index_template.index_patterns == [data_stream]
+    quiet: true
+
+- name: "S0 | Wait for Dashboards status"
+  ansible.builtin.uri:
+    url: "{{ dashboards_url }}/api/status"
+    url_username: admin
+    url_password: "{{ opensearch_admin_password }}"
+  register: opensearch_s0_dashboards
+  until: opensearch_s0_dashboards.status == 200 and opensearch_s0_dashboards.json.status.overall.state == 'green'
+  retries: 30
+  delay: 10

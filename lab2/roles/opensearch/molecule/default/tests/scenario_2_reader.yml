@@ -1,0 +1,81 @@
+---
+# Запись появляется в поиске после refresh (1 с), поэтому поиск повторяем
+- name: "S2 | Find the document from scenario 1 in logs*"
+  ansible.builtin.uri:
+    url: "{{ api_url }}/logs*/_search"
+    method: POST
+    url_username: logs_reader_user
+    url_password: "{{ opensearch_logs_reader_password }}"
+    body_format: json
+    body:
+      query:
+        match:
+          message: "{{ opensearch_test_marker }}"
+  register: opensearch_s2_search
+  until: opensearch_s2_search.status == 200 and opensearch_s2_search.json.hits.total.value == 1
+  retries: 10
+  delay: 2
+
+- name: "S2 | Assert it is the same document"
+  ansible.builtin.assert:
+    that:
+      - (opensearch_s2_search.json.hits.hits | first)._id == opensearch_s1_write.json._id
+      - (opensearch_s2_search.json.hits.hits | first)._source.message == opensearch_test_marker
+    quiet: true
+
+- name: "S2 | Assert writing is forbidden"
+  ansible.builtin.uri:
+    url: "{{ api_url }}/{{ item }}/_doc"
+    method: POST
+    url_username: logs_reader_user
+    url_password: "{{ opensearch_logs_reader_password }}"
+    body_format: json
+    body:
+      "@timestamp": "{{ now(utc=true, fmt='%Y-%m-%dT%H:%M:%SZ') }}"
+    status_code: 403
+  loop:
+    - "{{ data_stream }}"
+    - logs-other
+
+- name: "S2 | Assert deleting is forbidden"
+  ansible.builtin.uri:
+    url: "{{ api_url }}/{{ item }}"
+    method: DELETE
+    url_username: logs_reader_user
+    url_password: "{{ opensearch_logs_reader_password }}"
+    status_code: 403
+  loop:
+    - "{{ data_stream }}"
+    - "{{ opensearch_s1_write.json._index }}"
+    - "_data_stream/{{ data_stream }}"
+
+# Без реплик: иначе на одном узле кластер станет yellow и сценарий 3 увидит не тот статус
+- name: "S2 | Create an empty index outside logs* as admin"
+  ansible.builtin.uri:
+    url: "{{ api_url }}/{{ foreign_index }}"
+    method: PUT
+    url_username: admin
+    url_password: "{{ opensearch_admin_password }}"
+    body_format: json
+    body:
+      settings:
+        index:
+          number_of_replicas: 0
+
+- name: "S2 | Add a document to the index outside logs*"
+  ansible.builtin.uri:
+    url: "{{ api_url }}/{{ foreign_index }}/_doc/1?refresh=true"
+    method: PUT
+    url_username: admin
+    url_password: "{{ opensearch_admin_password }}"
+    body_format: json
+    body:
+      secret: not for logs readers
+    status_code: [200, 201]
+
+- name: "S2 | Assert reading an index outside logs* is forbidden"
+  ansible.builtin.uri:
+    url: "{{ api_url }}/{{ foreign_index }}/_search"
+    url_username: logs_reader_user
+    url_password: "{{ opensearch_logs_reader_password }}"
+    status_code: 403

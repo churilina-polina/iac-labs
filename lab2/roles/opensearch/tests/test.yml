@@ -1,0 +1,31 @@
+---
+# Быстрая проверка без Molecule: прогон роли + автозапуск и hold пакетов.
+#   из lab2/: ansible-playbook roles/opensearch/tests/test.yml
+#   на самой целевой машине: ansible-playbook -i tests/inventory tests/test.yml -e @vars.yml
+- name: Test opensearch role
+  hosts: all
+  become: true
+  roles:
+    - role: opensearch
+
+  post_tasks:
+    - name: Gather service facts
+      ansible.builtin.service_facts:
+
+    - name: Assert services are enabled and running
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['services'][item]['status'] == 'enabled'
+          - ansible_facts['services'][item]['state'] == 'running'
+        quiet: true
+      loop:
+        - opensearch.service
+        - opensearch-dashboards.service
+
+    - name: Assert packages are held
+      ansible.builtin.command: apt-mark showhold
+      register: opensearch_test_held
+      changed_when: false
+      failed_when: >-
+        'opensearch' not in opensearch_test_held.stdout_lines
+        or 'opensearch-dashboards' not in opensearch_test_held.stdout_lines

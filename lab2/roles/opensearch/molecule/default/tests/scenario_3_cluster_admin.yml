@@ -1,0 +1,74 @@
+---
+- name: "S3 | Get cluster settings"
+  ansible.builtin.uri:
+    url: "{{ api_url }}/_cluster/settings"
+    url_username: cluster_admin_user
+    url_password: "{{ opensearch_cluster_admin_password }}"
+  register: opensearch_s3_settings
+  failed_when: "'persistent' not in opensearch_s3_settings.json"
+
+- name: "S3 | Get cluster health"
+  ansible.builtin.uri:
+    url: "{{ api_url }}/_cluster/health"
+    url_username: cluster_admin_user
+    url_password: "{{ opensearch_cluster_admin_password }}"
+  register: opensearch_s3_health
+  failed_when: opensearch_s3_health.json.status != 'green'
+
+- name: "S3 | Check OpenSearch version"
+  ansible.builtin.uri:
+    url: "{{ api_url }}/"
+    url_username: cluster_admin_user
+    url_password: "{{ opensearch_cluster_admin_password }}"
+  register: opensearch_s3_root
+  failed_when: opensearch_s3_root.json.version.number != opensearch_version
+
+- name: "S3 | Change a cluster setting"
+  ansible.builtin.uri:
+    url: "{{ api_url }}/_cluster/settings"
+    method: PUT
+    url_username: cluster_admin_user
+    url_password: "{{ opensearch_cluster_admin_password }}"
+    body_format: json
+    body:
+      persistent:
+        cluster.routing.allocation.cluster_concurrent_rebalance: "{{ item }}"
+  loop:
+    - 3
+    - null
+
+- name: "S3 | Assert reading index data is forbidden"
+  ansible.builtin.uri:
+    url: "{{ api_url }}/{{ item }}/_search"
+    url_username: cluster_admin_user
+    url_password: "{{ opensearch_cluster_admin_password }}"
+    status_code: 403
+  loop:
+    - "logs*"
+    - "{{ opensearch_s1_write.json._index }}"
+    - "{{ foreign_index }}"
+
+- name: "S3 | Assert writing to logs is forbidden"
+  ansible.builtin.uri:
+    url: "{{ api_url }}/{{ data_stream }}/_doc"
+    method: POST
+    url_username: cluster_admin_user
+    url_password: "{{ opensearch_cluster_admin_password }}"
+    body_format: json
+    body:
+      "@timestamp": "{{ now(utc=true, fmt='%Y-%m-%dT%H:%M:%SZ') }}"
+    status_code: 403
+
+- name: "S3 | Assert managing security is forbidden"
+  ansible.builtin.uri:
+    url: "{{ api_url }}/_plugins/_security/api/roles"
+    url_username: cluster_admin_user
+    url_password: "{{ opensearch_cluster_admin_password }}"
+    status_code: 403
+
+- name: "S3 | Delete the index created for scenario 2"
+  ansible.builtin.uri:
+    url: "{{ api_url }}/{{ foreign_index }}"
+    method: DELETE
+    url_username: admin
+    url_password: "{{ opensearch_admin_password }}"

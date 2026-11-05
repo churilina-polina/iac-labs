@@ -1,0 +1,41 @@
+---
+# GET перед PUT нужен для идемпотентности: API принимает PUT всегда,
+# поэтому менять шаблон стоит только если он действительно отличается.
+- name: Manage index template and data stream as admin
+  module_defaults:
+    ansible.builtin.uri:
+      url_username: admin
+      url_password: "{{ opensearch_admin_password }}"
+      force_basic_auth: "{{ opensearch_security_enabled }}"
+      validate_certs: false
+  block:
+    - name: Get current index template
+      ansible.builtin.uri:
+        url: "{{ opensearch_api_url }}/_index_template/{{ opensearch_logs_template_name }}"
+        status_code: [200, 404]
+      register: opensearch_current_template
+
+    - name: Create or update index template
+      ansible.builtin.uri:
+        url: "{{ opensearch_api_url }}/_index_template/{{ opensearch_logs_template_name }}"
+        method: PUT
+        body_format: json
+        body: "{{ opensearch_logs_template }}"
+      changed_when: true
+      when: >-
+        opensearch_current_template.status == 404
+        or (opensearch_current_template.json.index_templates | first).index_template
+        | combine({'composed_of': []}) != opensearch_logs_template | combine({'composed_of': []})
+
+    - name: Get current data stream
+      ansible.builtin.uri:
+        url: "{{ opensearch_api_url }}/_data_stream/{{ opensearch_logs_data_stream }}"
+        status_code: [200, 404]
+      register: opensearch_current_data_stream
+
+    - name: Create data stream
+      ansible.builtin.uri:
+        url: "{{ opensearch_api_url }}/_data_stream/{{ opensearch_logs_data_stream }}"
+        method: PUT
+      changed_when: true
+      when: opensearch_current_data_stream.status == 404

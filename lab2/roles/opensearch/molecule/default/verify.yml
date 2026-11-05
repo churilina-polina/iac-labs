@@ -1,0 +1,33 @@
+---
+- name: Verify
+  hosts: opensearch
+  become: true
+  gather_facts: false
+  vars:
+    api_url: "https://127.0.0.1:9200"
+    dashboards_url: "http://127.0.0.1:5601"
+    data_stream: logs
+    # Маркер отличает документ этого прогона от оставшихся после прошлых verify.
+    # Без дефиса: поле message типа text, и анализатор разбил бы маркер на два слова.
+    test_marker: "molecule{{ lookup('ansible.builtin.pipe', 'date +%s') }}"
+    foreign_index: "verify-foreign"
+  module_defaults:
+    ansible.builtin.uri:
+      force_basic_auth: true
+      validate_certs: false
+  tasks:
+    - name: Fix test marker for the whole run
+      ansible.builtin.set_fact:
+        opensearch_test_marker: "{{ test_marker }}"
+
+    - name: Scenario 0 - service works correctly after installation
+      ansible.builtin.import_tasks: tests/scenario_0_service.yml
+
+    - name: Scenario 1 - writer role
+      ansible.builtin.import_tasks: tests/scenario_1_writer.yml
+
+    - name: Scenario 2 - reader role
+      ansible.builtin.import_tasks: tests/scenario_2_reader.yml
+
+    - name: Scenario 3 - cluster admin role
+      ansible.builtin.import_tasks: tests/scenario_3_cluster_admin.yml
