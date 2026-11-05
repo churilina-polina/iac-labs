@@ -5,7 +5,7 @@
 | № | Тема | Папка |
 |---|---|---|
 | 1 | Ansible: роль для OpenSearch + Dashboards 3.8 (single-node) | [lab1](lab1/) |
-| 2 | — | — |
+| 2 | Molecule: ролевая модель и автотесты роли OpenSearch | [lab2](lab2/) |
 | 3 | — | — |
 | 4 | — | — |
 | 5 | — | — |

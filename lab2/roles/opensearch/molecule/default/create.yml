@@ -1,0 +1,31 @@
+---
+- name: Create Lima VM
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    vm_name: "{{ molecule_yml.platforms[0].name }}"
+    vm_template: "{{ lookup('ansible.builtin.env', 'MOLECULE_PROJECT_DIRECTORY') }}/../../lima-vm.yaml"
+  tasks:
+    - name: Get existing Lima VMs
+      ansible.builtin.command: limactl list --format '{{ "{{" }}.Name{{ "}}" }} {{ "{{" }}.Status{{ "}}" }}'
+      register: opensearch_lima_vms
+      changed_when: false
+
+    - name: Create and start VM
+      ansible.builtin.command: limactl start --name={{ vm_name }} --tty=false {{ vm_template }}
+      when: vm_name not in opensearch_lima_vms.stdout
+      changed_when: true
+
+    - name: Start stopped VM
+      ansible.builtin.command: limactl start {{ vm_name }}
+      when: (vm_name ~ ' Stopped') in opensearch_lima_vms.stdout
+      changed_when: true
+
+    - name: Dump instance config
+      ansible.builtin.copy:
+        content: |
+          # Molecule managed
+          - instance: {{ vm_name }}
+        dest: "{{ molecule_instance_config }}"
+        mode: "0600"

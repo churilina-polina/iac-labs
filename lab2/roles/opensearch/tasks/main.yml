@@ -1,0 +1,37 @@
+---
+- name: Run preflight checks
+  ansible.builtin.import_tasks: preflight.yml
+  tags: [opensearch, preflight]
+
+- name: Prepare system (sysctl, swap)
+  ansible.builtin.import_tasks: system.yml
+  tags: [opensearch, system]
+
+- name: Configure OpenSearch apt repositories
+  ansible.builtin.import_tasks: repository.yml
+  tags: [opensearch, install]
+
+- name: Install and configure OpenSearch
+  ansible.builtin.import_tasks: opensearch.yml
+  tags: [opensearch, install, config]
+
+- name: Install and configure OpenSearch Dashboards
+  ansible.builtin.import_tasks: dashboards.yml
+  when: opensearch_dashboards_enabled
+  tags: [opensearch, dashboards]
+
+- name: Flush pending restarts before verification
+  ansible.builtin.meta: flush_handlers
+
+- name: Verify readiness via API
+  ansible.builtin.import_tasks: verify.yml
+  tags: [opensearch, verify]
+
+- name: Configure logs data stream
+  ansible.builtin.import_tasks: data_stream.yml
+  tags: [opensearch, data_stream]
+
+- name: Configure security model via REST API
+  ansible.builtin.import_tasks: security.yml
+  when: opensearch_security_enabled
+  tags: [opensearch, security]

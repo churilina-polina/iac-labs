@@ -1,0 +1,20 @@
+# Lima VM for lab 2: Ubuntu 24.04, 4 CPU / 8 GB RAM
+vmType: vz
+cpus: 4
+memory: 8GiB
+disk: 30GiB
+images:
+  - location: "https://cloud-images.ubuntu.com/releases/noble/release/ubuntu-24.04-server-cloudimg-arm64.img"
+    arch: "aarch64"
+mounts: []
+containerd:
+  system: false
+  user: false
+# Тесты ходят в API изнутри VM, на хост порты не нужны и не должны мешать другим стендам
+portForwards:
+  - guestIP: "0.0.0.0"
+    guestPortRange: [1, 65535]
+    ignore: true
+  - guestIP: "127.0.0.1"
+    guestPortRange: [1, 65535]
+    ignore: true

@@ -1,0 +1,49 @@
+---
+# Запуск из roles/opensearch: molecule test
+# Драйвер default: VM создаёт и удаляет не Molecule, а наши create.yml/destroy.yml через Lima.
+# Docker здесь не подходит: роль ставит OpenSearch на машину и настраивает ядро и systemd.
+driver:
+  name: default
+  options:
+    managed: true
+
+platforms:
+  - name: opensearch-lab2
+    groups:
+      - opensearch
+
+ansible:
+  cfg:
+    defaults:
+      host_key_checking: false
+      interpreter_python: auto_silent
+      roles_path: ${MOLECULE_PROJECT_DIRECTORY}/..
+      vault_password_file: ${MOLECULE_PROJECT_DIRECTORY}/../../.vault_pass
+      result_format: yaml
+    ssh_connection:
+      pipelining: true
+  env:
+    ANSIBLE_FORCE_COLOR: "1"
+  executor:
+    backend: ansible-playbook
+    args:
+      ansible_playbook:
+        - --inventory=${MOLECULE_PROJECT_DIRECTORY}/../../inventory
+  playbooks:
+    create: create.yml
+    converge: converge.yml
+    side_effect: side_effect.yml
+    verify: verify.yml
+    destroy: destroy.yml
+
+scenario:
+  name: default
+  test_sequence:
+    - destroy
+    - syntax
+    - create
+    - converge
+    - idempotence
+    - side_effect
+    - verify
+    - destroy

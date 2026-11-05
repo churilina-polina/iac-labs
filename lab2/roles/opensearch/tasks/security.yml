@@ -1,0 +1,82 @@
+---
+# Все PUT выполняются только при расхождении с текущим состоянием (сравниваем с GET),
+# поэтому повторный прогон роли даёт changed=0.
+- name: Manage security model as admin
+  module_defaults:
+    ansible.builtin.uri:
+      url_username: admin
+      url_password: "{{ opensearch_admin_password }}"
+      force_basic_auth: true
+      validate_certs: false
+  block:
+    - name: Get current security roles
+      ansible.builtin.uri:
+        url: "{{ opensearch_security_api_url }}/roles"
+      register: opensearch_current_roles
+
+    - name: Create or update security roles
+      ansible.builtin.uri:
+        url: "{{ opensearch_security_api_url }}/roles/{{ item.name }}"
+        method: PUT
+        status_code: [200, 201]
+        body_format: json
+        body:
+          cluster_permissions: "{{ item.cluster_permissions | default([]) }}"
+          index_permissions: "{{ item.index_permissions | default([]) }}"
+      changed_when: true
+      loop: "{{ opensearch_security_roles }}"
+      loop_control:
+        label: "{{ item.name }}"
+      # API дополняет index_permissions пустыми fls и masked_fields, для сравнения добавляем их и мы
+      when: >-
+        item.name not in opensearch_current_roles.json
+        or opensearch_current_roles.json[item.name].cluster_permissions != item.cluster_permissions | default([])
+        or opensearch_current_roles.json[item.name].index_permissions
+        != item.index_permissions | default([]) | map('combine', {'fls': [], 'masked_fields': []}) | list
+
+    # Хеш пароля сравнить нельзя, поэтому проверяем, что с этим паролем можно войти.
+    # 401 означает, что пользователя нет или пароль другой, тогда пользователя надо записать.
+    - name: Check whether users can log in with configured passwords
+      ansible.builtin.uri:
+        url: "{{ opensearch_api_url }}/_plugins/_security/authinfo"
+        url_username: "{{ item.name }}"
+        url_password: "{{ item.password }}"
+        status_code: [200, 401]
+      register: opensearch_users_login
+      loop: "{{ opensearch_security_users }}"
+      no_log: true
+
+    - name: Create or update users
+      ansible.builtin.uri:
+        url: "{{ opensearch_security_api_url }}/internalusers/{{ item.item.name }}"
+        method: PUT
+        status_code: [200, 201]
+        body_format: json
+        body:
+          password: "{{ item.item.password }}"
+      changed_when: true
+      loop: "{{ opensearch_users_login.results }}"
+      when: item.status == 401
+      no_log: true
+
+    - name: Get current role mappings
+      ansible.builtin.uri:
+        url: "{{ opensearch_security_api_url }}/rolesmapping"
+      register: opensearch_current_mappings
+
+    - name: Map each user to its role
+      ansible.builtin.uri:
+        url: "{{ opensearch_security_api_url }}/rolesmapping/{{ item.role }}"
+        method: PUT
+        status_code: [200, 201]
+        body_format: json
+        body:
+          users:
+            - "{{ item.name }}"
+      changed_when: true
+      loop: "{{ opensearch_security_users }}"
+      loop_control:
+        label: "{{ item.name }} -> {{ item.role }}"
+      when: >-
+        item.role not in opensearch_current_mappings.json
+        or opensearch_current_mappings.json[item.role].users != [item.name]

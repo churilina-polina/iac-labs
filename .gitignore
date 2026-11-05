@@ -1,3 +1,5 @@
 .venv/
 *.retry
 .DS_Store
+.vault_pass
+.ansible/

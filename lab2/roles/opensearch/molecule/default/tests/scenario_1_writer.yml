@@ -1,0 +1,68 @@
+---
+- name: "S1 | Write a document to the data stream"
+  ansible.builtin.uri:
+    url: "{{ api_url }}/{{ data_stream }}/_doc"
+    method: POST
+    url_username: logs_writer_user
+    url_password: "{{ opensearch_logs_writer_password }}"
+    body_format: json
+    body:
+      "@timestamp": "{{ now(utc=true, fmt='%Y-%m-%dT%H:%M:%SZ') }}"
+      message: "{{ opensearch_test_marker }}"
+      level: info
+    status_code: 201
+  register: opensearch_s1_write
+
+- name: "S1 | Assert the document landed in the data stream backing index"
+  ansible.builtin.assert:
+    that:
+      - opensearch_s1_write.json.result == 'created'
+      - opensearch_s1_write.json._index is match('\.ds-' ~ data_stream ~ '-')
+    quiet: true
+
+- name: "S1 | Assert search is forbidden"
+  ansible.builtin.uri:
+    url: "{{ api_url }}/{{ data_stream }}/_search"
+    url_username: logs_writer_user
+    url_password: "{{ opensearch_logs_writer_password }}"
+    status_code: 403
+
+- name: "S1 | Assert reading the document by id is forbidden"
+  ansible.builtin.uri:
+    url: "{{ api_url }}/{{ data_stream }}/_doc/{{ opensearch_s1_write.json._id }}"
+    url_username: logs_writer_user
+    url_password: "{{ opensearch_logs_writer_password }}"
+    status_code: 403
+
+- name: "S1 | Assert writing to other indices is forbidden"
+  ansible.builtin.uri:
+    url: "{{ api_url }}/{{ item }}/_doc"
+    method: POST
+    url_username: logs_writer_user
+    url_password: "{{ opensearch_logs_writer_password }}"
+    body_format: json
+    body:
+      "@timestamp": "{{ now(utc=true, fmt='%Y-%m-%dT%H:%M:%SZ') }}"
+    status_code: 403
+  loop:
+    - logs-other
+    - "{{ foreign_index }}"
+
+- name: "S1 | Assert cluster information is forbidden"
+  ansible.builtin.uri:
+    url: "{{ api_url }}/{{ item }}"
+    url_username: logs_writer_user
+    url_password: "{{ opensearch_logs_writer_password }}"
+    status_code: 403
+  loop:
+    - _cluster/health
+    - _cluster/settings
+    - ""
+
+- name: "S1 | Assert data stream cannot be deleted"
+  ansible.builtin.uri:
+    url: "{{ api_url }}/_data_stream/{{ data_stream }}"
+    method: DELETE
+    url_username: logs_writer_user
+    url_password: "{{ opensearch_logs_writer_password }}"
+    status_code: 403
